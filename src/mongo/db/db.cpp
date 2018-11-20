@@ -29,6 +29,9 @@
 */
 
 #define MONGO_LOG_DEFAULT_COMPONENT ::mongo::logger::LogComponent::kStorage
+#if defined (TDN_TRIM4) || defined (TDN_TRIM4_2) || defined (TDN_TRIM5) || defined (TDN_TRIM5_2)
+#include <third_party/wiredtiger/src/include/mytrim.h>
+#endif
 
 #include "mongo/platform/basic.h"
 
@@ -685,6 +688,20 @@ ExitCode initService() {
 using namespace mongo;
 
 static int mongoDbMain(int argc, char* argv[], char** envp);
+
+#if defined(TDN_TRIM4) || defined(TDN_TRIM4_2) || defined(TDN_TRIM5) || defined (TDN_TRIM5_2)
+TRIM_MAP* trimmap;
+off_t *my_starts_tem, *my_ends_tem;
+
+FILE* my_fp4;
+int32_t my_off_size; //size
+size_t my_trim_freq_config; //how often trim will call
+
+pthread_t trim_tid;
+pthread_mutex_t trim_mutex;
+pthread_cond_t trim_cond;
+bool my_is_trim_running;
+#endif
 
 #if defined(_WIN32)
 // In Windows, wmain() is an alternate entry point for main(), and receives the same parameters
