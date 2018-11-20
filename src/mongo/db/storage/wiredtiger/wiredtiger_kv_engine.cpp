@@ -67,6 +67,22 @@
 #define __has_feature(x) 0
 #endif
 
+#if defined(TDN_TRIM4) || defined(TDN_TRIM4_2) || defined(TDN_TRIM5) || defined (TDN_TRIM5_2)
+#include <third_party/wiredtiger/src/include/mytrim.h>
+
+extern TRIM_MAP* trimmap;
+extern off_t *my_starts_tem, *my_ends_tem;
+extern FILE* my_fp4;
+extern int32_t my_off_size;
+extern size_t my_trim_freq_config;
+
+extern pthread_mutex_t trim_mutex;
+extern pthread_cond_t trim_cond;
+extern bool my_is_trim_running;
+
+#define FSTRIM_FREQ 1024 
+#endif
+
 namespace mongo {
 
 using std::set;
