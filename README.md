@@ -1,5 +1,5 @@
 # mongo-trim
-## Optimize MongoDB with TRIM command (published paper in EDB 2016)
+## Optimize MongoDB with TRIM command (published paper in [EDB 2016](https://dl.acm.org/citation.cfm?doid=3007818.3007844))
 
 Author: Trong-Dat Nguyen (trauconnguyen@gmail.com)
 
