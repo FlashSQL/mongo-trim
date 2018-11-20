@@ -254,6 +254,32 @@ WiredTigerKVEngine::~WiredTigerKVEngine() {
 void WiredTigerKVEngine::cleanShutdown() {
     log() << "WiredTigerKVEngine shutting down";
     syncSizeInfo(true);
+
+#if defined(TDN_TRIM4) || defined(TDN_TRIM4_2) || defined (TDN_TRIM5) || defined (TDN_TRIM5_2)
+	int ret2;
+	ret2 = fflush(my_fp4);
+	if (ret2){
+		perror("fflush");
+	}
+	//ret = fclose(my_fp4);
+	if(ret2) {
+		perror("fclose");
+	}
+
+	my_is_trim_running = false;	
+	pthread_cond_destroy(&trim_cond);
+
+	pthread_mutex_destroy(&trim_mutex);
+	trimmap_free(trimmap);
+
+	free(my_starts_tem);
+	my_starts_tem = NULL;
+	free(my_ends_tem);
+	my_ends_tem = NULL;
+
+	printf("======== > Close, track trim op #4\n");
+#endif //TDN_TRIM4
+
     if (_conn) {
         // these must be the last things we do before _conn->close();
         _sizeStorer.reset(NULL);
