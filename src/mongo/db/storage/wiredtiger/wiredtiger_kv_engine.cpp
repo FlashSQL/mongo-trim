@@ -175,6 +175,22 @@ WiredTigerKVEngine::WiredTigerKVEngine(const std::string& canonicalName,
     ss << "statistics_log=(wait=" << wiredTigerGlobalOptions.statisticsLogDelaySecs << "),";
     ss << WiredTigerCustomizationHooks::get(getGlobalServiceContext())->getOpenConfig("system");
     ss << extraOpenOptions;
+
+#if defined(TDN_TRIM5) || defined(TDN_TRIM5_2)
+	my_trim_freq_config = TRIM_INIT_THRESHOLD; //this const is defined in mytrim.h
+	printf("====== my_trim_freq_config=%zu\n", my_trim_freq_config);
+	my_fp4 = fopen("my_trim_track4.txt", "a");
+	printf("====== init global trimmap\n");
+	trimmap = trimmap_new();
+	my_starts_tem = (off_t*) calloc(TRIM_MAX_RANGE, sizeof(off_t));
+	my_ends_tem = (off_t*) calloc(TRIM_MAX_RANGE , sizeof(off_t));
+
+	printf("======== > Track trim mode, opimize #4, multiple ranges, multiple files\n");
+	pthread_mutex_init(&trim_mutex, NULL);
+	trim_cond = PTHREAD_COND_INITIALIZER;	
+	my_is_trim_running = false;
+#endif //TDN_TRIM5
+
     if (!_durable) {
         // If we started without the journal, but previously used the journal then open with the
         // WT log enabled to perform any unclean shutdown recovery and then close and reopen in
