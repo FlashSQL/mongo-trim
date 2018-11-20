@@ -29,7 +29,7 @@
 */
 
 #define MONGO_LOG_DEFAULT_COMPONENT ::mongo::logger::LogComponent::kStorage
-#if defined (TDN_TRIM4) || defined (TDN_TRIM4_2) || defined (TDN_TRIM5) || defined (TDN_TRIM5_2)
+#if defined  (TDN_TRIM4) || defined (TDN_TRIM4_2) || defined (TDN_TRIM5) || defined (TDN_TRIM5_2)
 #include <third_party/wiredtiger/src/include/mytrim.h>
 #endif
 
