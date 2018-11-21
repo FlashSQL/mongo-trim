@@ -637,6 +637,65 @@ __wt_block_free(WT_SESSION_IMPL *session,
 	return (ret);
 }
 
+#if defined(TDN_TRIM5_2)
+/*
+ *tdnguyen
+ Save old address (begin offset, end offset) in trimmap struct
+ Trigger TRIM commnad if the number of saved address of one file > a threashold
+ * */
+static void __trim_save_address(WT_BLOCK* block, wt_off_t offset, wt_off_t size){
+
+	TRIM_OBJ* obj;
+
+	uint32_t retsize;
+	int tem_ret;
+	int index, fdtem;
+	
+	//if the nunber of saved offset still less than a threadhold 
+
+	if(trimmap->oid == TRIM_INDEX_NOT_SET){
+		//convert from addr to (offset, size) pair
+		//save the range
+		fdtem = block->fh->fd;
+		index = trimmap_find(trimmap, fdtem);
+		if (index >= 0){
+			obj = trimmap->data[index];
+			if (offset < 0 || size < 0) {
+				printf("__trim_save_address, sth wrong, offset = %jd ,size = %jd \n", offset, size);
+				return;
+			}
+			retsize = trimobj_add_range(obj, offset, offset + size);
+			//check for oversize
+			if (retsize >= (obj->max_size - 10)){
+				// triger trim thread
+				printf("===>begin trigger TRIM command thread, retsize=%d, index=%d, max_size=%d, count=%d\n",
+						retsize, index, obj->max_size, obj->count);
+				fprintf(my_fp4, "===>begin trigger TRIM command thread, retsize=%d, index=%d, max_size=%d, count=%d\n",
+						retsize, index, obj->max_size, obj->count);
+				trimmap->oid  = index;
+				tem_ret = pthread_mutex_trylock(&trim_mutex);
+				if(tem_ret == 0){
+					pthread_cond_signal(&trim_cond);
+					pthread_mutex_unlock(&trim_mutex);
+				}
+				else {
+					//Trim thread is signaled previously, just skip, 
+					//it will come back soon to checking point when the next call 
+				}
+			}	
+		}
+		else {
+			//add new object
+			printf("=====> in __trim_save_address, index < 0, fname is %s...\n", block->fh->name);
+			//trimmap_add(trimmap, fdtem, TRIM_INIT_THRESHOLD);	
+		}
+	}// end if(trimmap->oid == TRIM_INDEX_NOT_SET
+	else{
+		//printf("===> in __trim_save_address, trimmap->oid =%d\n", trimmap->oid);
+	}
+}
+#endif //defined (TDN_TRIM5_2)
+
 /*
  * __wt_block_off_free --
  *	Free a file range to the underlying file.
