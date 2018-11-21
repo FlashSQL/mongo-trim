@@ -8,6 +8,24 @@
 
 #include "wt_internal.h"
 
+#if defined(TDN_TRIM5_2)
+
+#include "mytrim.h"
+#include <sys/ioctl.h> //for ioctl call
+#include <linux/fs.h> //for fstrim_range
+#include <string.h>
+#include <errno.h>
+
+extern TRIM_MAP* trimmap;
+extern FILE* my_fp4;
+extern int32_t my_off_size; //size
+extern size_t my_trim_freq_config; //how often trim will call
+
+extern pthread_t trim_tid;
+extern pthread_mutex_t trim_mutex;
+extern pthread_cond_t trim_cond;
+#endif //TDN_TRIM5_2
+
 /*
  * WT_BLOCK_RET --
  *	Handle extension list errors that would normally panic the system but
@@ -18,6 +36,11 @@
 	__wt_err(session, __ret, __VA_ARGS__);				\
 	return ((block)->verify ? __ret : __wt_panic(session));		\
 } while (0)
+
+#if defined(TDN_TRIM5_2)
+static void __trim_save_address(WT_BLOCK* , wt_off_t, wt_off_t );
+//static void __trim_save_address(WT_BLOCK* , wt_off_t, uint32_t );
+#endif
 
 static int __block_append(WT_SESSION_IMPL *,
 	WT_BLOCK *, WT_EXTLIST *, wt_off_t, wt_off_t);
