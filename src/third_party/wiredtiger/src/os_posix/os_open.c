@@ -8,6 +8,12 @@
 
 #include "wt_internal.h"
 
+#if defined (TDN_TRIM5) || defined (TDN_TRIM5_2)
+#include "mytrim.h"
+extern TRIM_MAP* trimmap;
+extern FILE* my_fp4;
+extern size_t my_trim_freq_config; //how often trim will call
+#endif
 /*
  * __open_directory --
  *	Open up a file handle to a directory.
@@ -144,6 +150,17 @@ setupfh:
 		WT_ERR(posix_fadvise(fd, 0, 0, POSIX_FADV_RANDOM));
 #endif
 
+#if defined (TDN_TRIM5) || defined (TDN_TRIM5_2)
+	//simple register object to trimmap
+	if( ((strstr(name, "linkbench/collection") != 0) || (strstr(name, "linkbench/index") != 0)) ) { 
+		//achieve offset in retval 
+		
+		printf("==> open %s fd %d\n", name, fd);
+		trimmap_add(trimmap, fd, TRIM_INIT_THRESHOLD);
+		printf("==> register object %s current size %d\n", name, trimmap->size);
+
+	}
+#endif
 	WT_ERR(__wt_calloc_one(session, &fh));
 	WT_ERR(__wt_strdup(session, name, &fh->name));
 	fh->name_hash = hash;
