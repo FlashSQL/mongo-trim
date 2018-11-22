@@ -312,6 +312,12 @@ __ckpt_server(void *arg)
 		WT_ERR(
 		    __wt_cond_wait(session, conn->ckpt_cond, conn->ckpt_usecs));
 
+#if defined(TDN_TRIM5) || defined(TDN_TRIM5_2)
+		//update obj->max_size for each obj in trimmap and reset obj->count
+		printf("call trimmap_update_max_size\n");
+		trimmap_update_max_size(trimmap);
+		trimmap->oid = TRIM_INDEX_NOT_SET;
+#endif
 		/* Checkpoint the database. */
 		WT_ERR(wt_session->checkpoint(wt_session, conn->ckpt_config));
 
