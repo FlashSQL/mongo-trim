@@ -90,6 +90,106 @@ err:	__wt_scr_free(session, &tmp);
 	return (ret);
 }
 
+#if defined (TDN_TRIM5) || defined (TDN_TRIM5_2)
+/*
+ * quicksort based on x array, move associate element in y arrays
+ * x, y have the same length
+ * */
+static void quicksort(off_t* x, off_t* y,  int32_t first, int32_t last){
+	int32_t pivot, i, j;
+	off_t temp;
+
+	if(first < last) {
+		pivot = first;
+		i = first;
+		j = last;
+		
+		while(i < j){
+			while(x[i] <= x[pivot] && i < last)
+				i++;
+			while(x[j] > x[pivot])
+				j--;
+			if(i < j){
+				//swap in x
+				temp = x[i];
+				x[i] = x[j];
+				x[j] = temp;
+				//swap in y
+				temp = y[i];
+				y[i] = y[j];
+				y[j] = temp;
+			}
+		}
+
+		temp = x[pivot];
+		x[pivot] = x[j];
+		x[j] = temp;
+
+		temp = y[pivot];
+		y[pivot] = y[j];
+		y[j] = temp;
+
+		quicksort(x, y, first, j - 1);
+		quicksort(x, y, j + 1, last);
+	}
+}
+/*
+ *1: sort the ranges in order
+  2: merge overlap ranges
+  3: call TRIM command for merged ranges
+ * */
+void __trim_sort_merge(TRIM_OBJ* obj, int32_t size){
+	off_t cur_start, cur_end;
+	struct fstrim_range range;
+
+	int32_t i, myret;
+
+	//copy offsets 
+	memcpy(my_starts_tem, obj->starts, size * sizeof(off_t));
+	memcpy(my_ends_tem, obj->ends, size * sizeof(off_t));
+	//sort
+	quicksort(my_starts_tem, my_ends_tem, 0, size - 1);
+	//scan through ranges, try join overlap range then call trim
+	cur_start = my_starts_tem[0];
+	cur_end = my_ends_tem[0];
+
+	//loop call TRIM command for each range
+	for(i = 1; i < size; i++){
+		if(cur_end < my_starts_tem[i]) {
+			//non-overlap, trim the current range
+			if ((cur_end - cur_start) <= 0){
+				fprintf(my_fp4, "logical error cur_end <= cur_start\n");
+				//skip trimming
+			}
+			else {
+				range.len = cur_end - cur_start;
+				range.start = cur_start;
+				range.minlen = 4096; //at least 4KB
+				myret = ioctl(obj->fd, FITRIM, &range);
+				if(myret < 0){
+					perror("ioctl");
+					fprintf(my_fp4, 
+							"call trim error ret %d errno %s range.start %llu range.len %llu range.minlen %llu\n",
+							myret, strerror(errno), range.start, range.len, range.minlen);
+				}	
+			}
+			cur_start = my_starts_tem[i];
+			cur_end = my_ends_tem[i];
+		}	
+		else {
+			//overlap case, join two range, keep the cur_start, 
+			//extend the cur_end
+			if(cur_end <= my_ends_tem[i]){
+				cur_end = my_ends_tem[i]; //extend
+			}
+			else {
+				//kept the same
+			}
+		}
+	} //end for
+}
+#endif
+
 /*
  * __ckpt_server --
  *	The checkpoint server thread.
