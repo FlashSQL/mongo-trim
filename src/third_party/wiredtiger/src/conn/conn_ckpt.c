@@ -188,7 +188,38 @@ void __trim_sort_merge(TRIM_OBJ* obj, int32_t size){
 		}
 	} //end for
 }
-#endif
+/*
+ *A simple trim command apporach
+ For a given ranges, call TRIM command for each range
+ Pros: eliminate overhead of memcpy, sort, merge ranges
+ cons: more ioctl() calls 
+ * */
+static void __trim_simple(TRIM_OBJ* obj, int32_t size) {
+	
+	struct fstrim_range range;
+
+	int32_t i, myret;
+	/*
+	 *Since we use the single shared my_starts_tem and my_ends_tem, when the 
+	 thread is call too quickly, the previous values may be overwritten by the
+	 later call => don't use the tem buffer anymore 
+	 * */	
+	//memcpy(my_starts_tem, obj->starts, size * sizeof(off_t));
+	//memcpy(my_ends_tem, obj->ends, size * sizeof(off_t));
+	for(i = 0; i < size; i++){
+		range.start = obj->starts[i];
+		range.len = (obj->ends[i] - obj->starts[i]);
+		range.minlen = 4096;
+		myret = ioctl(obj->fd, FITRIM, &range);
+		if(myret < 0){
+			perror("ioctl");
+			fprintf(my_fp4, 
+					"call trim error ret %d errno %s range.start %llu range.len %llu range.minlen %llu\n",
+					myret, strerror(errno), range.start, range.len, range.minlen);
+		}	
+	}//end for
+}
+#endif // TDN_TRIM5
 
 /*
  * __ckpt_server --
