@@ -8,6 +8,24 @@
 
 #include "wt_internal.h"
 
+#if defined(TDN_TRIM4) || defined(TDN_TRIM5)
+
+#include "mytrim.h"
+#include <sys/ioctl.h> //for ioctl call
+#include <linux/fs.h> //for fstrim_range
+#include <string.h>
+#include <errno.h>
+
+extern TRIM_MAP* trimmap;
+extern FILE* my_fp4;
+extern int32_t my_off_size; //size
+extern size_t my_trim_freq_config; //how often trim will call
+
+extern pthread_t trim_tid;
+extern pthread_mutex_t trim_mutex;
+extern pthread_cond_t trim_cond;
+#endif //TDN_TRIM4
+
 struct __rec_boundary;		typedef struct __rec_boundary WT_BOUNDARY;
 struct __rec_dictionary;	typedef struct __rec_dictionary WT_DICTIONARY;
 struct __rec_kv;		typedef struct __rec_kv WT_KV;
@@ -287,6 +305,10 @@ typedef struct {
 
 	uint32_t tested_ref_state;	/* Debugging information */
 } WT_RECONCILE;
+
+#if defined(TDN_TRIM5)
+static void __trim_save_address(WT_BM* , uint8_t* );
+#endif
 
 static void __rec_bnd_cleanup(WT_SESSION_IMPL *, WT_RECONCILE *, bool);
 static void __rec_cell_build_addr(WT_SESSION_IMPL *,
@@ -5270,6 +5292,14 @@ __rec_split_discard(WT_SESSION_IMPL *session, WT_PAGE *page)
 	WT_PAGE_MODIFY *mod;
 	WT_MULTI *multi;
 	uint32_t i;
+#if defined(TDN_TRIM5)
+
+	WT_BM *bm;
+	WT_BTREE *btree;
+
+	btree = S2BT(session);
+	bm = btree->bm;
+#endif
 
 	mod = page->modify;
 
@@ -5290,6 +5320,10 @@ __rec_split_discard(WT_SESSION_IMPL *session, WT_PAGE *page)
 			if (multi->addr.reuse)
 				multi->addr.addr = NULL;
 			else {
+#if defined(TDN_TRIM5)
+				//save old address and trigger TRIM thread
+			__trim_save_address(bm, multi->addr.addr);
+#endif
 				WT_RET(__wt_btree_block_free(session,
 				    multi->addr.addr, multi->addr.size));
 				__wt_free(session, multi->addr.addr);
@@ -5360,6 +5394,58 @@ __rec_split_dump_keys(WT_SESSION_IMPL *session, WT_PAGE *page, WT_RECONCILE *r)
 err:	__wt_scr_free(session, &tkey);
 	return (ret);
 }
+#if defined(TDN_TRIM5)
+/*
+ *tdnguyen
+ Save old address (begin offset, end offset) in trimmap struct
+ Trigger TRIM commnad if the number of saved address of one file > a threashold
+ * */
+static void __trim_save_address(WT_BM* bm, uint8_t* addr){
+
+	TRIM_OBJ* obj;
+	wt_off_t tem_offset1;
+	uint32_t tem_size1, tem_cksum1;
+
+	uint32_t retsize;
+	int tem_ret;
+	int index, fdtem;
+	
+	//if the nunber of saved offset still less than a threadhold 
+	if(trimmap->oid == TRIM_INDEX_NOT_SET){
+		//convert from addr to (offset, size) pair
+	__wt_block_buffer_to_addr(bm->block, addr,
+				&tem_offset1, &tem_size1, &tem_cksum1);
+		//save the range
+		fdtem = bm->block->fh->fd;
+		index = trimmap_find(trimmap, fdtem);
+		if (index >= 0){
+			obj = trimmap->data[index];
+			retsize = trimobj_add_range(obj, tem_offset1, tem_offset1 + tem_size1);
+			//check for oversize
+			if (retsize >= (obj->max_size - 10)){
+				// triger trim thread
+				printf("===>begin trigger TRIM command thread, retsize=%d, index=%d, max_size=%d, count=%d\n",
+						retsize, index, obj->max_size, obj->count);
+				fprintf(my_fp4, "===>begin trigger TRIM command thread, retsize=%d, index=%d, max_size=%d, count=%d\n",
+						retsize, index, obj->max_size, obj->count);
+				trimmap->oid  = index;
+				tem_ret = pthread_mutex_trylock(&trim_mutex);
+				if(tem_ret == 0){
+					pthread_cond_signal(&trim_cond);
+					pthread_mutex_unlock(&trim_mutex);
+				}
+				else {
+					//Trim thread is signaled previously, just skip 
+				}
+			}	
+		}
+		else {
+			//add new object
+			trimmap_add(trimmap, fdtem, my_trim_freq_config);	
+		}
+	}// end if(trimmap->oid == TRIM_INDEX_NOT_SET
+}
+#endif //defined (TDN_TRIM5)
 
 /*
  * __rec_write_wrapup --
