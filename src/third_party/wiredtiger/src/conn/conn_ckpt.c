@@ -378,7 +378,11 @@ __ckpt_server_start(WT_CONNECTION_IMPL *conn)
 	WT_RET(__wt_thread_create(
 	    session, &conn->ckpt_tid, __ckpt_server, session));
 	conn->ckpt_tid_set = true;
-
+#if defined (TDN_TRIM5) || defined (TDN_TRIM5_2)
+	my_is_trim_running = true;
+	WT_RET(pthread_create(&trim_tid, NULL, __trim_ranges, NULL));
+	printf("========>>||||| create thread for TRIM command, trimmap size=%d \n", trimmap->size);
+#endif
 	return (0);
 }
 
