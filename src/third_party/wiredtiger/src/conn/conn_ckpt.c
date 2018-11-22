@@ -219,6 +219,71 @@ static void __trim_simple(TRIM_OBJ* obj, int32_t size) {
 		}	
 	}//end for
 }
+
+/* 
+ * The trim handle thread
+ * Triggered by trim_cond
+ * Call trim for multiple ranges
+ * fd: file description that trim will occur on
+ * starts: array start offset
+ * ends: array end offset
+ * size: size of arrays, starts and ends have the same size
+ * arg: fd that trim will occur on
+ * */
+static WT_THREAD_RET 
+__trim_ranges(void* arg) {
+	
+	//off_t cur_start, cur_end;
+	//struct fstrim_range range;
+
+	//int32_t i, myret;
+	int32_t size;
+	TRIM_OBJ* obj;
+
+	while (trimmap->oid == TRIM_INDEX_NOT_SET && my_is_trim_running) {
+		//wait for pthread_cond_signal
+		pthread_cond_wait(&trim_cond, &trim_mutex);
+		// wait ...
+	
+		//when the process reach this line, trimmap->oid should != TRIM_INDEX_NOT_SET
+		printf("TRIM thread is active, trimmap->oid=%d\n ", trimmap->oid);	
+		//check again
+		if(trimmap->oid < 0) continue;
+		
+		obj = trimmap->data[trimmap->oid];
+
+		//obj->size may changed during this processs, take a snapshot here
+	    size = obj->size;	
+		if (obj->size == 0) continue;
+
+		//signaled by other, now handle trim
+	
+		printf("inside TRIM handle thread, call __trim_ranges, size = %d, oid=%d\n", size, trimmap->oid);
+		fprintf(my_fp4, "inside TRIM handle thread, call __trim_ranges, size = %d, oid=%d\n", size, trimmap->oid);
+		//Choose between two options: 
+		//1: trim with sort and merge 
+		//2: simple trim ranges		
+		
+		__trim_sort_merge(obj, size);	
+		//__trim_simple(obj, size);
+		//reset
+
+		trimmap->oid = TRIM_INDEX_NOT_SET;
+		obj->size = 0; //reset
+
+		//For large enough time interval, sleep some minutes to avoid unexpected thread bug
+		//NOTICE: for multiple files, when the thread is sleeping, there may have another trigger
+		//that make the trimmap->oid != TRIM_INDEX_NOT_SET => end WHILE
+		//so we don't sleep anymore 
+		if(size >= 10000){
+			//sleep(500);
+			//sleep(10);
+		}
+
+	} //end while
+	pthread_exit(NULL);
+	return (WT_THREAD_RET_VALUE);
+}	
 #endif // TDN_TRIM5
 
 /*
