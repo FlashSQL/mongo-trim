@@ -8,6 +8,20 @@
 
 #include "wt_internal.h"
 
+#if defined(TDN_TRIM5) || defined (TDN_TRIM5_2)
+#include "mytrim.h"
+
+extern TRIM_MAP* trimmap;
+extern off_t *my_starts_tem, *my_ends_tem;
+extern FILE* my_fp4;
+extern size_t my_trim_freq_config; //how often trim will call
+
+extern pthread_t trim_tid;
+extern pthread_mutex_t trim_mutex;
+extern pthread_cond_t trim_cond;
+extern bool my_is_trim_running;
+#endif //TDN_TRIM5
+
 static int __ckpt_server_start(WT_CONNECTION_IMPL *);
 
 /*
