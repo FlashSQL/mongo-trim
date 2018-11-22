@@ -5501,6 +5501,10 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 		 * are checkpoints, and must be explicitly dropped.
 		 */
 		if (!__wt_ref_is_root(ref))
+#if defined (TDN_TRIM5)
+			/* Get the old address*/
+			__trim_save_address(bm, mod->mod_replace.addr);
+#endif //TND_TRIM5
 			WT_RET(__wt_btree_block_free(session,
 			    mod->mod_replace.addr, mod->mod_replace.size));
 
